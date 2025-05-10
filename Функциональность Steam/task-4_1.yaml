@@ -1,0 +1,521 @@
+openapi: 3.0.0
+info:
+  title: Домашнее задание №4 по курсу "Системный дизайн"
+  description: |
+    Документация к API, моделирующему поведение **магазина** и **страницы профиля** сервиса *Steam*.
+
+    ## Участники проекта:
+    - Лазуткина Мария  
+    - Белова Елизавета  
+    - Владимиров Алексей  
+    - Цапков Михаил
+
+    ## Назначение
+    Данный OpenAPI-документ описывает API, реализующий функциональность пользовательского профиля и магазина Steam
+  version: 0.0.1
+servers:
+  - url: http://localhost:8080/api/v1/
+    description: development server
+paths:
+  /user/profile-data:
+    get:
+      summary: Получить персональные данные пользователя
+      description: |
+        Возвращает персонализированные данные пользователя Steam, включая корзину, вишлист, купленные игры и предпочтения.
+      tags:
+        - Store
+        - Profile
+      operationId: getUserProfileData
+      responses:
+        '200':
+          description: Успешный ответ с данными профиля
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileData'
+        '401':
+          description: Unauthorized – отсутствует или недействительный access_token
+        '500':
+          description: Internal Server Error – ошибка на стороне сервера
+  /cart/coupons:
+    post:
+      summary: Получить актуальные купоны для корзины пользователя
+      description: |
+        Возвращает список релевантных купонов на скидки в корзине пользователя Steam.
+        Использует access_token в query-параметре.
+      tags:
+        - Store
+      operationId: getCartCoupons
+      parameters:
+        - name: access_token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: JWT-токен авторизации пользователя
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                input_protobuf_encoded:
+                  type: string
+                  format: byte
+                  description: Base64-кодированный protobuf-запрос
+              required:
+                - input_protobuf_encoded
+      responses:
+        '200':
+          description: Список применимых купонов (в формате Protobuf)
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '204':
+          description: Нет доступных купонов
+        '400':
+          description: Bad Request – отсутствует обязательное поле `input_protobuf_encoded`
+        '401':
+          description: Unauthorized – отсутствует или недействительный access_token
+        '500':
+          description: Internal Server Error – ошибка на стороне сервера
+
+  /addToWishlist:
+    post:
+      summary: Добавить игру в вишлист
+      description: Добавляет указанную игру в вишлист пользователя.
+      tags:
+        - Store
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                sessionid:
+                  type: string
+                  description: Идентификатор сессии пользователя
+                  example: "1234567890abcdef"
+                appid:
+                  type: integer
+                  description: Идентификатор игры
+      responses:
+        '200':
+          description: Игра добавлена в вишлист
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  wishlistCount:
+                    type: integer
+                    example: 1
+        '400':
+          description: Bad Request – отсутствует sessionid или appid
+        '401':
+          description: Unauthorized – доступ без авторизационного cookie
+        '500':
+          description: Internal Server Error – ошибка на стороне сервера
+  /cart/removeFromCart:
+    post:
+      summary: Удалить товар из корзины
+      description: |
+        Удаляет указанный товар из корзины пользователя.
+      tags:
+        - Store
+      operationId: removeItemFromCart
+      parameters:
+        - name: access_token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: JWT-токен авторизации пользователя
+        - name: item_id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Идентификатор товара, который нужно удалить из корзины
+      responses:
+        '200':
+          description: Товар успешно удален из корзины
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  cartLineItemCount:
+                    type: integer
+                    description: Обновленное количество товаров в корзине
+        '400':
+          description: Bad Request – отсутствует item_id или access_token
+        '401':
+          description: Unauthorized – доступ без авторизации
+        '404':
+          description: Not Found – товар не найден в корзине
+        '500':
+          description: Internal Server Error – ошибка на стороне сервера
+  /cart/addToCart:
+    post:
+      summary: Добавить товар в корзину
+      description: |
+        Добавляет указанный товар в корзину пользователя.
+      tags:
+        - Store
+      operationId: addItemToCart
+      parameters:
+        - name: access_token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: JWT-токен авторизации пользователя
+      responses:
+        '200':
+          description: Товар успешно добавлен в корзину
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  cartLineItemCount:
+                    type: integer
+                    description: Обновленное количество товаров в корзине
+        '401':
+          description: Неавторизованный доступ. Требуется авторизация через cookie.
+        '400':
+          description: Ошибка запроса. Проверь параметры.
+        '500':
+          description: Внутренняя ошибка сервера
+  /removeFromWishList:
+    post:
+      summary: Удалить игру из вишлиста
+      description: Удаляет указанную игру из вишлиста пользователя.
+      tags:
+        - Store
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                sessionid:
+                  type: string
+                  description: Идентификатор сессии пользователя
+                  example: "1234567890abcdef"
+                appid:
+                  type: integer
+                  description: Идентификатор игры
+      responses:
+        '200':
+          description: Запрос выполнен успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  wishlistCount:
+                    type: integer
+                    example: 1
+        '401':
+          description: Неавторизованный доступ. Требуется авторизация через cookie.
+        '400':
+          description: Ошибка запроса. Проверь параметры.        
+  /comment/{profile}/post/{steamid}/{page}:
+    post:
+      tags:
+        - Profile
+      summary: Оставить комментарий на стене пользователя Steam
+      description: Позволяет авторизованным пользователям оставлять комментарии в профиле других пользователей
+      parameters:
+        - name: profile
+          in: path
+          required: true
+          description: Идентификатор профиля
+          schema:
+            type: string
+          example: "profile"
+        - name: steamid
+          in: path
+          required: true
+          description: SteamID64 целевого профиля
+          schema:
+            type: string
+            format: int64
+          example: "76561199554875520"
+        - name: page
+          in: path
+          required: true
+          description: Идентификатор страницы (используйте -1 по умолчанию)
+          schema:
+            type: string
+          example: "-1"
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+                  description: Текст комментария
+                count:
+                  type: integer
+                  description: Количество комментариев
+                  example: 6
+                sessionid:
+                  type: string
+                  description: Идентификатор сессии для авторизации
+              required:
+                - comment
+                - sessionid
+      responses:
+        '200':
+          description: Комментарий успешно размещён
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Успешность операции
+                    example: true
+                  name:
+                    type: string
+                    description: Имя профиля
+                    example: "Prof11e_7686119959487520"
+                  start:
+                    type: integer
+                    description: Начальный индекс
+                    example: 0
+                  pageint:
+                    type: string
+                    description: Идентификатор страницы
+                    example: "6"
+                  total_count:
+                    type: integer
+                    description: Общее количество комментариев
+                    example: 1
+                  upvotes:
+                    type: integer
+                    description: Количество лайков
+                    example: 0
+                  has_upvotes:
+                    type: integer
+                    description: Наличие лайков
+                    example: 0
+                  comments.html:
+                    type: string
+                    description: HTML-контент комментариев
+                  timelastpost:
+                    type: integer
+                    description: Время последнего поста
+                    example: 1746815751
+        '401':
+          description: Unauthorized – отсутствует sessionid или неверная авторизация
+        '403':
+          description: Forbidden – пользователь не имеет права оставлять комментарии
+        '500':
+          description: Internal Server Error – ошибка при сохранении комментария
+      security:
+        - steam_auth: []
+  /actions/AddFriend:
+    post:
+      tags:
+        - Profile
+      summary: Добавить друга
+      description: Отправляет запрос на добавление в друзья другому пользователю Steam
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                steamid:
+                  type: string
+                  description: SteamID пользователя, которого нужно добавить в друзья
+                  example: "76561198045796166"
+                accept_invite:
+                  type: boolean
+                  description: Принять приглашение (если true)
+                  example: false
+                sessionid:
+                  type: string
+                  description: Идентификатор сессии для аутентификации
+              required:
+                - steamid
+                - sessionid
+      responses:
+        '200':
+          description: Успешный запрос на добавление в друзья
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: integer
+                    description: Код успешного выполнения (1 - успех)
+                    example: 1
+                  invited:
+                    type: array
+                    items:
+                      type: string
+                    description: Массив SteamID успешно приглашенных пользователей
+                    example: ["76561198045796166"]
+                  invited_result:
+                    type: array
+                    items:
+                      type: integer
+                    description: Массив кодов результатов для приглашенных пользователей
+                    example: [1]
+        '400':
+          description: Bad Request – отсутствует steamid или sessionid
+        '401':
+          description: Unauthorized – пользователь не авторизован
+        '403':
+          description: Forbidden – превышен лимит друзей или заблокирован доступ
+        '500':
+          description: Internal Server Error – ошибка на стороне сервера
+  /user/profile/{steamid}/edit/:
+    post:
+      tags:
+        - Profile
+      summary: Редактирование профиля
+      description: Позволяет авторизованным пользователям редактировать данные своего профиля Steam
+      parameters:
+        - name: steamid
+          in: path
+          required: true
+          description: SteamID64 пользователя
+          schema:
+            type: string
+            format: int64
+          example: "76561199554875520"
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                sessionid:
+                  type: string
+                  description: Идентификатор сессии для аутентификации
+              required:
+                - sessionid
+      responses:
+        '200':
+          description: Профиль успешно отредактирован
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: integer
+                    description: Флаг успешного выполнения (1 - успех)
+                    example: 1
+                  errmsg:
+                    type: string
+                    description: Сообщение об ошибке (если есть)
+                    example: ""
+        '400':
+          description: Bad Request – отсутствует sessionid или данные для редактирования
+        '401':
+          description: Unauthorized – пользователь не авторизован
+        '403':
+          description: Forbidden – попытка редактирования чужого профиля
+        '500':
+          description: Internal Server Error – ошибка при сохранении изменений
+
+components:
+  schemas:
+    UserProfileData:
+      type: object
+      properties:
+        rgWishlist:
+          type: array
+          items:
+            type: integer
+          description: Список app_id игр из вишлиста
+        rgOwnedApps:
+          type: array
+          items:
+            type: integer
+          description: Список app_id купленных игр
+        rgOwnedPackages:
+          type: array
+          items:
+            type: integer
+          description: Список ID пакетов, купленных пользователем
+        rgAppsInCart:
+          type: array
+          items:
+            type: integer
+          description: Игры, находящиеся в корзине
+        rgPackagesInCart:
+          type: array
+          items:
+            type: integer
+          description: Пакеты, находящиеся в корзине
+        rgRecommendedTags:
+          type: array
+          items:
+            type: object
+            properties:
+              tagid:
+                type: integer
+              name:
+                type: string
+          description: Теги, рекомендованные пользователю
+        rgRecommendedApps:
+          type: array
+          items:
+            type: integer
+          description: Рекомендуемые приложения
+        rgExcludedContentDescriptorIDs:
+          type: array
+          items:
+            type: integer
+          description: Типы контента, скрытые пользователем (например, 3, 4, 5 — 18+)
+        rgFollowedApps:
+          type: array
+          items:
+            type: integer
+          description: Приложения, за которыми следит пользователь
+        nCartLineItemCount:
+          type: integer
+          description: Количество товаров в корзине
+        nTotalCartDiscount:
+          type: integer
+          description: Общая скидка на корзину
+        rgPrimaryLanguage:
+          type: integer
+          description: ID основного языка пользователя
+  securitySchemes:
+    steam_auth:
+      type: apiKey
+      in: cookie
+      name: sessionid
