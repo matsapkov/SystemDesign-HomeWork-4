@@ -1,0 +1,377 @@
+openapi: 3.0.0
+info:
+  title: Домашнее задание №4 по курсу "Системный дизайн"
+  description: |
+    Документация к API собственного функционала "Совместная аренда игр на время".
+
+    ## Участники проекта:
+    - Лазуткина Мария  
+    - Белова Елизавета  
+    - Владимиров Алексей  
+    - Цапков Михаил
+
+    ## Назначение
+    Данный OpenAPI-документ описывает API, реализующий функциональность "Совместная аренда игр на время".
+  version: 0.0.1
+
+servers:
+  - url: http://localhost:8080/api/v1/
+    description: development server
+
+paths:
+  /user/UserData:
+    get:
+      summary: Получить персональные данные пользователя
+      description: |
+        Возвращает персонализированные данные пользователя Steam, включая корзину, вишлист, купленные игры и предпочтения.
+      tags:
+        - Совместная аренда игр
+      operationId: getUserData
+      responses:
+        '200':
+          description: Успешный ответ с данными профиля
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileData'
+        '401':
+          description: Unauthorized – отсутствует или недействительный access_token
+        '500':
+          description: Internal Server Error – ошибка на стороне сервера
+  /groupControl/addInGroup:
+    post:
+      summary: Пригласить пользователя в группу
+      description: Отправляет пользователю приглашение на участие в группе по аренде игр.
+      tags:
+        - Совместная аренда игр
+      operationId: sendInvitation
+      parameters:
+        - name: access_token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: JWT-токен авторизации пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - groupId
+                - invitedUserId
+              properties:
+                groupId:
+                  type: string
+                  description: Уникальный идентификатор группы аренды
+                  example: "grp_abc123"
+                invitedUserId:
+                  type: string
+                  description: Идентификатор пользователя, которого приглашают (Steam ID)
+                  example: "76561198000000000"
+      responses:
+        '200':
+          description: Приглашение успешно отправлено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Приглашение отправлено"
+        '400':
+          description: Неверный запрос – отсутствует `groupId` или `invitedUserId`
+        '401':
+          description: Неавторизован – отсутствует или недействительный access_token
+        '404':
+          description: Пользователь или группа не найдены
+        '409':
+          description: Пользователь уже состоит в группе
+        '500':
+          description: Внутренняя ошибка сервера
+  /groupControl/removeFromGroup:
+    post:
+      summary: Удалить пользователя из группы аренды
+      description: Удаляет указанного пользователя из выбранной группы аренды.
+      tags:
+        - Совместная аренда игр
+      operationId: removeUser
+      parameters: 
+        - name: access_token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: JWT-токен авторизации пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - groupId
+                - userId
+              properties:
+                groupId:
+                  type: string
+                  description: Идентификатор группы аренды
+                  example: "grp_abc123"
+                userId:
+                  type: string
+                  description: Идентификатор пользователя, которого нужно удалить (Steam ID)
+                  example: "76561198000000000"
+      responses:
+        '200':
+          description: Пользователь успешно удалён из группы
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Пользователь удалён из группы"
+        '400':
+          description: Неверный запрос – отсутствует `groupId` или `userId`
+        '401':
+          description: Неавторизован – отсутствует или недействительный access_token
+        '403':
+          description: Доступ запрещён – недостаточно прав для удаления участника
+        '404':
+          description: Пользователь или группа не найдены
+        '500':
+          description: Внутренняя ошибка сервера
+  /checkAccess/checkGameAccess:
+    post:
+      summary: Проверка доступа к игре
+      description: Проверяет, имеет ли пользователь доступ к определённой игре в рамках совместной аренды.
+      tags:
+        - Совместная аренда игр
+      operationId: checkUserAccess
+      parameters: 
+        - name: access_token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: JWT-токен авторизации пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - gameId
+              properties:
+                gameId:
+                  type: string
+                  description: Идентификатор игры (например, appid или внутренний ID группы)
+                  example: "730"
+                userId:
+                  type: string
+                  description: Steam ID пользователя, доступ которого проверяется
+                  example: "76561198000000000"
+      responses:
+        '200':
+          description: Результат проверки доступа
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hasAccess:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Пользователь имеет доступ к игре"
+        '400':
+          description: Неверный запрос – отсутствует `userId` или `gameId`
+        '401':
+          description: Неавторизован – отсутствует или недействительный access_token
+        '404':
+          description: Пользователь или игра не найдены
+        '500':
+          description: Внутренняя ошибка сервера
+  /billingShare/getBill:
+    post:
+      summary: Получение счета на оплату
+      description: Запрос передает параметры (время аренды, id пользователей), а получает в ответ ассоциативный массив с суммой, которую должен оплатить каждый пользователь.
+      tags:
+        - Совместная аренда игр
+      operationId: getBill
+      parameters:
+        - name: access_token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: JWT-токен авторизации пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - usersId
+                - timeRent
+              properties:
+                usersId:
+                  type: array
+                  description: Массив идентификаторов участников группы аренды
+                  items:
+                    type: string
+                    example: "76561198000000000, 7656119800000001, XXX...XXX"
+                timeRent:
+                  type: string
+                  format: time
+                  description: Время аренды в формате ЧЧ:ММ:СС (24-часовой формат)
+                  example: "14:30:00"
+      responses:
+        '200':
+          description: Выставление счета за аренду каждому игроку
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Ассоциативный массив Steam ID -> сумма к оплате
+                additionalProperties:
+                  type: string
+                  description: Сумма оплаты
+                  example: "730₽"
+        '400':
+          description: Неверный запрос – отсутствуют обязательные параметры
+        '401':
+          description: Неавторизован – недействительный access_token
+        '500':
+          description: Внутренняя ошибка сервера
+  /checkAccess/getGameAccess:
+    post:
+      summary: Получить доступ к игре
+      description: Пользователи, входящие в арендующую группу, получают доступ к игре
+      tags: 
+        - Совместная аренда игр
+      operationId: getGameAccess
+      parameters: 
+        - name: access_token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: JWT-токен авторизации пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                gameID:
+                  type: string
+                  description: Идентификатор игры (например, appid или внутренний ID группы)
+                  example: "730"
+                token:
+                  type: string
+                  description: JWT токен авторизации пользователя
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        '200': 
+          description: Успешная проверка доступа
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hasAccess:
+                    type: boolean
+                    description: Флаг наличия доступа к игре
+                    example: "true"
+        '400':
+          description: Неверный запрос 
+        '401':
+          description: Неавторизован – отсутствует или недействительный access_token
+        '404':
+          description: Пользователь или игра не найдены
+        '500':
+          description: Внутренняя ошибка сервера
+components:
+  schemas:
+    UserProfileData:
+      type: object
+      properties:
+        rgWishlist:
+          type: array
+          items:
+            type: integer
+          description: Список app_id игр из вишлиста
+        rgOwnedApps:
+          type: array
+          items:
+            type: integer
+          description: Список app_id купленных игр
+        rgOwnedPackages:
+          type: array
+          items:
+            type: integer
+          description: Список ID пакетов, купленных пользователем
+        rgAppsInCart:
+          type: array
+          items:
+            type: integer
+          description: Игры, находящиеся в корзине
+        rgPackagesInCart:
+          type: array
+          items:
+            type: integer
+          description: Пакеты, находящиеся в корзине
+        rgRecommendedTags:
+          type: array
+          items:
+            type: object
+            properties:
+              tagid:
+                type: integer
+              name:
+                type: string
+          description: Теги, рекомендованные пользователю
+        rgRecommendedApps:
+          type: array
+          items:
+            type: integer
+          description: Рекомендуемые приложения
+        rgExcludedContentDescriptorIDs:
+          type: array
+          items:
+            type: integer
+          description: Типы контента, скрытые пользователем (например, 3, 4, 5 — 18+)
+        rgFollowedApps:
+          type: array
+          items:
+            type: integer
+          description: Приложения, за которыми следит пользователь
+        nCartLineItemCount:
+          type: integer
+          description: Количество товаров в корзине
+        nTotalCartDiscount:
+          type: integer
+          description: Общая скидка на корзину
+        rgPrimaryLanguage:
+          type: integer
+          description: ID основного языка пользователя
+  securitySchemes:
+    steam_auth:
+      type: apiKey
+      in: cookie
+      name: sessionid
